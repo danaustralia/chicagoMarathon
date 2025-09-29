@@ -1,5 +1,5 @@
-kind: wasmer.io/App.v0
 name: chicago-marathon
+app_id: da_Ko6IotJUOP8j
 owner: danaustralia
 package: '.'
-app_id: da_Ko6IotJUOP8j
+kind: wasmer.io/App.v0
