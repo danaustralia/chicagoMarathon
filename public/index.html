@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Marathon — Year‑over‑Year Compare</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    :root{ --ink:#0f172a; --muted:#475569; --card:#fff; --bg:#f8fafc; }
+    body{ background:var(--bg); color:var(--ink); font-feature-settings:"tnum" on,"lnum" on; }
+    .card{ background:var(--card); border-radius:1rem; box-shadow:0 8px 24px rgba(2,6,23,.06); }
+    .metric{ font-variant-numeric: tabular-nums; }
+    .kpi-delta{ font-size:.8rem; }
+    .chip{ @apply px-2 py-0.5 rounded text-xs font-medium; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <!-- Header -->
+  <header class="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-500 grid place-items-center text-white shadow">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor"><path d="M13 5a3 3 0 1 0 6 0 3 3 0 0 0-6 0ZM8 10l5-2 3 2-3 3 2 2-2 5-3-3-4 2 2-5-3-2 3-2z"/></svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-semibold leading-tight">Marathon — YoY Dashboard</h1>
+          <p class="text-xs text-slate-500 -mt-0.5">Compare participation, outcomes, and weather by year</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="text-sm text-slate-600">Year</label>
+        <select id="yearSelect" class="px-2 py-1.5 border rounded-md text-sm">
+          <option>2024</option>
+          <option>2023</option>
+          <option>2022</option>
+          <option>2021</option>
+          <option>2020</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-8">
+    <!-- KPI Cards -->
+    <section>
+      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3" id="kpiGrid">
+        <!-- populated dynamically -->
+      </div>
+      <p class="text-xs text-slate-500 mt-2">Arrows compare selected year vs previous year. % is relative change.</p>
+    </section>
+
+    <!-- Participation & outcomes charts -->
+    <section class="grid md:grid-cols-2 gap-4" id="chartsBasic">
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-2"><h3 class="font-semibold">Race status</h3><span id="capStatus" class="text-xs text-slate-500"></span></div>
+        <canvas id="chartStatus"></canvas>
+      </div>
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-2"><h3 class="font-semibold">Gender share</h3><span id="capGender" class="text-xs text-slate-500"></span></div>
+        <canvas id="chartGender"></canvas>
+      </div>
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-2"><h3 class="font-semibold">Start windows (30‑min bins)</h3><span id="capStart" class="text-xs text-slate-500"></span></div>
+        <canvas id="chartStart"></canvas>
+      </div>
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-2"><h3 class="font-semibold">Finish times (15‑min bins)</h3><span id="capFinishBins" class="text-xs text-slate-500"></span></div>
+        <canvas id="chartFinishBins"></canvas>
+      </div>
+    </section>
+
+    <!-- Weather & pacing -->
+    <section class="space-y-4">
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-2"><h3 class="font-semibold">Race‑day weather (15‑minute)</h3><span id="capWeather" class="text-xs text-slate-500"></span></div>
+        <canvas id="chartWeather"></canvas>
+      </div>
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-2"><h3 class="font-semibold">Median segment pace vs temperature</h3><span id="capSegPace" class="text-xs text-slate-500"></span></div>
+        <canvas id="chartSegPace"></canvas>
+      </div>
+      <div class="grid md:grid-cols-1 gap-4">
+        <div class="card p-5">
+          <div class="flex items-center justify-between"><h3 class="font-semibold">Checkpoint flow vs weather — stacked by checkpoint (current)</h3><span id="capStackedCur" class="text-xs text-slate-500"></span></div>
+          <canvas id="chartFlowWeatherStackedCur"></canvas>
+        </div>
+        <div class="card p-5">
+          <div class="flex items-center justify-between"><h3 class="font-semibold">Checkpoint flow vs weather — stacked by checkpoint (previous)</h3><span id="capStackedPrev" class="text-xs text-slate-500"></span></div>
+          <canvas id="chartFlowWeatherStackedPrev"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Countries / Regions -->
+    <section class="space-y-4">
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-2"><h3 class="font-semibold">Top 20 countries by participants</h3><span id="capTop20" class="text-xs text-slate-500"></span></div>
+        <canvas id="chartCountriesTop"></canvas>
+      </div>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-2"><h3 class="font-semibold">Finishers by country</h3><span id="capFinCountry" class="text-xs text-slate-500"></span></div>
+          <canvas id="chartFinByCountry"></canvas>
+        </div>
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-2"><h3 class="font-semibold">Finishers by region</h3><span id="capFinRegion" class="text-xs text-slate-500"></span></div>
+          <canvas id="chartFinByRegion"></canvas>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    /* ======================== Config: file locations ======================== */
+    // Adjust this to your hosting. Filenames must match:
+    //   runner_details_YYYY.csv
+    //   weather_YYYY.csv
+    //   mapCountry.csv
+    const DATA_BASE = './';
+    const RUNNER_FILE = (y) => `${DATA_BASE}runner_details_${y}.csv`;
+    const WEATHER_FILE = (y) => `${DATA_BASE}weather_${y}.csv`;
+    const MAP_FILE = `${DATA_BASE}mapCountry.csv`;
+
+    /* =============================== Helpers =============================== */
+    const H = {
+      pad2: (n) => String(n).padStart(2,'0'),
+      toHHmm: (s) => {
+        if (s==null) return null; s = String(s).trim();
+        const d = new Date(s); if(!isNaN(d)) return H.pad2(d.getHours())+':'+H.pad2(d.getMinutes());
+        if (s.includes(':')) { const [hh,mm] = s.split(':'); return H.pad2(+hh)+':'+H.pad2(+mm); }
+        if (/^\d{4}$/.test(s)) return s.slice(0,2)+':'+s.slice(2);
+        return null;
+      },
+      q15: (hhmm) => { if(!hhmm) return null; const Hh=+hhmm.slice(0,2), Mm=+hhmm.slice(3,5); if(Number.isNaN(Hh)||Number.isNaN(Mm)) return null; const q = Math.floor(Mm/15)*15; return H.pad2(Hh)+':'+H.pad2(q); },
+      parseHMS: (s) => {
+        if (s==null) return null; s=String(s).trim(); if(!s || s==='-'||s==='—'||s==='–') return null;
+        const p = s.split(':'); if (p.length!==3) return null; const h=+p[0], m=+p[1], sec=+p[2];
+        if ([h,m,sec].some(Number.isNaN)) return null; return h*3600+m*60+sec;
+      },
+      fmtHMS: (t) => {
+        if (t==null) return '—'; const h=Math.floor(t/3600), m=Math.floor((t%3600)/60), s=Math.floor(t%60);
+        return `${H.pad2(h)}:${H.pad2(m)}:${H.pad2(s)}`;
+      },
+      median: (a) => { if(!a.length) return null; const b=a.slice().sort((x,y)=>x-y); const i=Math.floor(b.length/2); return b.length%2?b[i]:Math.floor((b[i-1]+b[i])/2); },
+      pctDelta: (cur, prev) => (prev===0||prev==null)? null : ((cur - prev)/prev*100),
+      arrow: (d) => d==null? '' : (d>0? '↑' : (d<0? '↓' : '→')),
+    };
+
+    /* ============================= Global state ============================ */
+    const charts = {};
+    let countryMap = null; // { code -> { Country, Region } }
+
+    /* ============================ Data loading ============================= */
+    function loadCSV(url) { return new Promise((resolve) => Papa.parse(url, { download:true, header:true, skipEmptyLines:true, complete: r => resolve(r.data||[]) })); }
+
+    async function loadYearBundle(year){
+      const [runners, weather] = await Promise.all([
+        loadCSV(RUNNER_FILE(year)),
+        loadCSV(WEATHER_FILE(year)),
+      ]);
+      return { year, runners, weather };
+    }
+
+    async function ensureMap(){
+      if (countryMap) return countryMap;
+      const rows = await loadCSV(MAP_FILE);
+      const headers = Object.keys(rows[0]||{}).reduce((a,k)=>{a[k.toLowerCase()] = k; return a;},{});
+      const codeCol = headers['countrycode']||headers['code']||headers['alpha3']||headers['ioc'];
+      const nameCol = headers['country']||headers['countryname']||headers['name'];
+      const regCol  = headers['region']||headers['continent'];
+      countryMap = {};
+      for (const r of rows){
+        const code = (r[codeCol]||'').toString().trim().toUpperCase(); if (!code) continue;
+        countryMap[code] = { Country: (r[nameCol]||code).toString().trim(), Region: (r[regCol]||'').toString().trim() };
+      }
+      return countryMap;
+    }
+
+    /* ============================== KPI logic ============================= */
+    function buildKPIs(rows){
+      const idx = (names) => { const cols = Object.keys(rows[0]||{}); const l = cols.map(c=>c.toLowerCase()); for(const n of names){ const i=l.indexOf(n); if(i>-1) return cols[i]; } return null; };
+      const cId   = idx(['idp_code','id','bibnumber']);
+      const cStat = idx(['race_status','racestatus','status']);
+      const cTime = idx(['finish_time','timetotal','time_total','finishnetto','nettime','nett_time','net']);
+      const cStart= idx(['start_time','start_time_net','starttimenet','starttime_net']);
+      const cUnder4 = 4*3600;
+      let registered=0, starters=0, finishers=0, dnf=0, dsq=0, under4=0;
+      const finishTimes=[], startBins={};
+
+      for (const r of rows){
+        if (cId && r[cId]) registered++;
+        const st = (r[cStat]||'').toString().trim();
+        const t  = H.parseHMS(r[cTime]);
+        if (st !== 'Not Started') starters++;
+        if (st === 'Finished' || (t!=null && st!=='Not Started')) finishers++;
+        if (st === 'Started') dnf++; // per your definition
+        if ((r[cTime]||'').toString().trim().toUpperCase()==='DSQ') dsq++;
+        if (t!=null && t < cUnder4) under4++;
+        const stNet = H.parseHMS(r[cStart]); if (stNet!=null){ const min = Math.floor(stNet/60); const slotStart = Math.floor(min/30)*30; const label = H.pad2(Math.floor(slotStart/60))+':'+H.pad2(slotStart%60)+'–'+H.pad2(Math.floor((slotStart+30)/60))+':'+H.pad2((slotStart+30)%60); startBins[label]=(startBins[label]||0)+1; }
+        if (t!=null) finishTimes.push(t);
+      }
+
+      const finishRate = registered? (finishers/registered*100) : 0;
+      const under4Rate = registered? (under4/registered*100) : 0;
+      const fastest = finishTimes.length? Math.min(...finishTimes) : null;
+      const slowest = finishTimes.length? Math.max(...finishTimes) : null;
+
+      return { registered, starters, finishers, dnf, dsq, finishRate, under4Rate, median: H.median(finishTimes), fastest, slowest, startBins };
+    }
+
+    function renderKPIs(cur, prev, year, prevYear){
+      const cfg = [
+        { key:'registered', label:'Registered' },
+        { key:'starters',   label:'Starters' },
+        { key:'finishers',  label:'Finishers' },
+        { key:'dnf',        label:'DNF' },
+        { key:'finishRate', label:'Finish rate', fmt:(v)=>v.toFixed(1)+'%' },
+        { key:'median',     label:'Median finish', fmt:H.fmtHMS },
+        { key:'under4Rate', label:'Under 4h', fmt:(v)=>v.toFixed(1)+'%' },
+        { key:'dsq',        label:'DSQ' },
+        { key:'fastest',    label:'Fastest', fmt:H.fmtHMS },
+        { key:'slowest',    label:'Last place', fmt:H.fmtHMS },
+      ];
+      const grid = document.getElementById('kpiGrid');
+      grid.innerHTML = '';
+      for (const c of cfg){
+        const val = cur[c.key];
+        const prevVal = prev? prev[c.key] : null;
+        const disp = c.fmt? c.fmt(val??0) : (val??0).toLocaleString();
+        const deltaPct = (typeof val === 'number' && typeof prevVal === 'number') ? H.pctDelta(val, prevVal) : null;
+        const arrow = H.arrow(deltaPct);
+        const pctStr = deltaPct==null? '' : ` ${arrow} ${Math.abs(deltaPct).toFixed(1)}% vs ${prevYear}`;
+        const color = deltaPct==null? 'text-slate-400' : (deltaPct>0? 'text-emerald-600' : (deltaPct<0? 'text-rose-600' : 'text-slate-500'));
+        const card = document.createElement('div');
+        card.className = 'card p-4';
+        card.innerHTML = `
+          <p class="text-xs text-slate-500">${c.label}</p>
+          <p class="metric text-2xl font-semibold mt-1">${disp}</p>
+          <p class="kpi-delta ${color}">${pctStr}</p>
+        `;
+        grid.appendChild(card);
+      }
+    }
+
+    /* ============================== Chart utils ============================ */
+    function ensureChart(id, type, data, options){
+      if (charts[id]) charts[id].destroy();
+      charts[id] = new Chart(document.getElementById(id).getContext('2d'), { type, data, options });
+      return charts[id];
+    }
+    function histFinishTimes(rows){
+      const idx = (names) => { const cols=Object.keys(rows[0]||{}); const l=cols.map(c=>c.toLowerCase()); for(const n of names){ const i=l.indexOf(n); if(i>-1) return cols[i]; } return null; };
+      const cTime = idx(['finish_time','timetotal','time_total','finishnetto','nettime','nett_time','net']);
+      const times = [];
+      for (const r of rows){ const t = H.parseHMS(r[cTime]); if (t!=null) times.push(t); }
+      const bins=[0,9000,10800,12600,13500,14400,15300,16200,17100,18000,18900,19800,20700,21600,22500,9e8];
+      const L=['<2:30','2:30–3:00','3:00–3:30','3:30–3:45','3:45–4:00','4:00–4:15','4:15–4:30','4:30–4:45','4:45–5:00','5:00–5:15','5:15–5:30','5:30–5:45','5:45–6:00','6:00–6:15','>6:15'];
+      const c = new Array(L.length).fill(0);
+      for (const t of times){ for (let j=0;j<L.length;j++){ if (t>=bins[j] && t<bins[j+1]){ c[j]++; break; } } }
+      return { labels:L, counts:c };
+    }
+
+    function statusCounts(rows){
+      const idx = (names) => { const cols=Object.keys(rows[0]||{}); const l=cols.map(c=>c.toLowerCase()); for(const n of names){ const i=l.indexOf(n); if(i>-1) return cols[i]; } return null; };
+      const cStat = idx(['race_status','racestatus','status']);
+      const map = {};
+      for (const r of rows){ const s=(r[cStat]||'').toString().trim(); map[s] = (map[s]||0) + 1; }
+      return map;
+    }
+
+    function genderCounts(rows){
+      const idx = (names) => { const cols=Object.keys(rows[0]||{}); const l=cols.map(c=>c.toLowerCase()); for(const n of names){ const i=l.indexOf(n); if(i>-1) return cols[i]; } return null; };
+      const c = idx(['gender','sex']); const out={};
+      for (const r of rows){ let g=(r[c]||'').toString().trim().toUpperCase(); if (g==='W') g='F'; if(!g) g='Other'; out[g]=(out[g]||0)+1; }
+      return out;
+    }
+
+    function startBins30(rows){
+      const idx = (names) => { const cols=Object.keys(rows[0]||{}); const l=cols.map(c=>c.toLowerCase()); for(const n of names){ const i=l.indexOf(n); if(i>-1) return cols[i]; } return null; };
+      const cStart = idx(['start_time','start_time_net','starttimenet','starttime_net']);
+      const slots={};
+      for (const r of rows){ const st=H.parseHMS(r[cStart]); if(st==null) continue; const min=Math.floor(st/60); const s=Math.floor(min/30)*30; const lab=`${H.pad2(Math.floor(s/60))}:${H.pad2(s%60)}–${H.pad2(Math.floor((s+30)/60))}:${H.pad2((s+30)%60)}`; slots[lab]=(slots[lab]||0)+1; }
+      const labels=Object.keys(slots).sort(); return { labels, counts: labels.map(l=>slots[l]) };
+    }
+
+    function weatherSeries(weatherRows){
+      const headers=Object.keys(weatherRows[0]||{}).reduce((a,k)=>{a[k.toLowerCase()]=k;return a;},{});
+      const tCol=headers['time']||headers['datetime']||headers['timestamp']||headers['date']||headers['hhmm'];
+      const tempCol=headers['temperature_c']||headers['temp_c']||headers['temperature']||headers['temp'];
+      const feelCol=headers['feelslike_c']||headers['feelslike']||headers['apparent_temp_c']||headers['apparenttemperature'];
+      const map={};
+      for(const r of weatherRows){ const label=H.toHHmm(r[tCol]); if(!label) continue; const tVal=tempCol!=null? Number(String(r[tempCol]).replace(',','.')): NaN; const fVal=feelCol!=null? Number(String(r[feelCol]).replace(',','.')): NaN; if(!map[label]) map[label]={t:null,f:null}; if(!Number.isNaN(tVal)) map[label].t=tVal; if(!Number.isNaN(fVal)) map[label].f=fVal; }
+      const labels=Object.keys(map).sort();
+      return { labels, temp: labels.map(l=>map[l].t), feels: labels.map(l=>map[l].f), map };
+    }
+
+    function checkpointCols(rows){
+      const cols=Object.keys(rows[0]||{});
+      const has=(cand)=>cols.some(c=>c.toLowerCase()===cand);
+      const map={};
+      const pairs=[ ['5K','05k_timeofday'], ['10K','10k_timeofday'], ['15K','15k_timeofday'], ['20K','20k_timeofday'], ['HALF','half_timeofday'], ['25K','25k_timeofday'], ['30K','30k_timeofday'], ['35K','35k_timeofday'], ['40K','40k_timeofday'], ['FINISH','finish_timeofday'], ];
+      for(const [key,cand] of pairs){ if(has(cand)) map[key] = cols.find(c=>c.toLowerCase()===cand); }
+      return map;
+    }
+
+    function flowStacked(rows, weather){
+      const cpMap = checkpointCols(rows);
+      const order = ['05K','10K','15K','20K','HALF','25K','30K','35K','40K','FINISH'].filter(k=>cpMap[k]);
+      const countsByCp = {}; const allLabels={};
+      for (const cp of order){
+        const col = cpMap[cp]; countsByCp[cp] = {};
+        for (const r of rows){ const v=r[col]; if(!v) continue; const b=H.q15(H.toHHmm(v)); if(!b) continue; countsByCp[cp][b]=(countsByCp[cp][b]||0)+1; allLabels[b]=true; }
+      }
+      let labels = Object.keys(allLabels);
+      if (weather?.labels?.length){ const m={}; for(const l of labels) m[l]=true; for(const l of weather.labels) m[l]=true; labels=Object.keys(m); }
+      labels.sort();
+      const datasets = order.map((cp,i)=>({ label:cp.replace('K','km').replace('HALF','Half'), data:labels.map(l=>countsByCp[cp][l]||0), stack:'cp' }));
+      if (weather){ datasets.push({ label:'Temperature (°C)', data:labels.map(l=>{ const i=weather.labels.indexOf(l); return i>-1? weather.temp[i] : null; }), type:'line', yAxisID:'y1', tension:.25, pointRadius:2 }); }
+      return { labels, datasets };
+    }
+
+    function segmentPaceSeries(rows, weather){
+      // Use *_min_per_km columns
+      const cols = Object.keys(rows[0]||{});
+      const paceCols = {};
+      for (const c of cols){
+        const lc = c.toLowerCase();
+        if (lc.endsWith('_min_per_km')){
+          // e.g., 05k_min_per_km, 10k_min_per_km ... FINISH_min_per_km
+          let label = lc.replace('_min_per_km','');
+          if (/^\d{2}k$/.test(label)) label = (parseInt(label,10)-5)+'-'+parseInt(label,10)+'km';
+          else if (label==='half') label='20-25km';
+          else if (label==='finish') label='40-42.2km';
+          paceCols[label] = c;
+        }
+      }
+      const labels = Object.keys(paceCols).sort((a,b)=>parseInt(a)-parseInt(b));
+      const med=[];
+      for (const lab of labels){ const col=paceCols[lab]; const vals=[]; for(const r of rows){ const s=(r[col]||'').toString().trim(); if(!s) continue; const parts=s.split(':'); let sec=null; if(parts.length===2){ const mm=+parts[0], ss=+parts[1]; if(!Number.isNaN(mm)&&!Number.isNaN(ss)) sec=mm*60+ss; } if(sec!=null) vals.push(sec); } med.push(H.median(vals)); }
+      // temperature: pick matching label by nearest time bucket of segment end (approximate using FINISH_TimeOfDay like fields)
+      // We'll approximate by mapping labels to typical cp names
+      const cpFor = (lab) => { const end = parseInt(lab.split('-')[1],10); if (end>=40) return '40K'; return (end+'K').padStart(3,'0').replace('K','K'); };
+      const cpCols = checkpointCols(rows);
+      const temps = labels.map(lab=>{
+        const cp = cpFor(lab); const col = cpCols[cp] || cpCols['40K'] || cpCols['FINISH']; if(!col || !weather) return null;
+        // mode 15-min bin for that cp
+        const counts={};
+        for (const r of rows){ const v=r[col]; if(!v) continue; const b=H.q15(H.toHHmm(v)); if(!b) continue; counts[b]=(counts[b]||0)+1; }
+        let best=null, bn=-1; for (const k in counts){ if (counts[k]>bn){ best=k; bn=counts[k]; }}
+        const i = weather.labels.indexOf(best); return i>-1? weather.temp[i] : null;
+      });
+      return { labels, paces:med, temps };
+    }
+
+    function top20Countries(runnersCur, runnersPrev){
+      const idx = (names, rows) => { const cols=Object.keys(rows[0]||{}); const l=cols.map(c=>c.toLowerCase()); for(const n of names){ const i=l.indexOf(n); if(i>-1) return cols[i]; } return null; };
+      const cCodeC = idx(['countrycode'], runnersCur) || idx(['country_code','nationcode','alpha3'], runnersCur);
+      const cCodeP = idx(['countrycode'], runnersPrev) || idx(['country_code','nationcode','alpha3'], runnersPrev);
+      const tally = (rows, col) => { const m={}; for (const r of rows){ const code=(r[col]||'').toString().trim().toUpperCase(); if(!code) continue; m[code]=(m[code]||0)+1; } return m; };
+      const cur = tally(runnersCur, cCodeC); const prev = tally(runnersPrev, cCodeP);
+      const all = new Set([...Object.keys(cur), ...Object.keys(prev)]);
+      const top = [...all].map(code=>({ code, total:(cur[code]||0)+(prev[code]||0) }))
+        .sort((a,b)=>b.total - a.total).slice(0,20).map(x=>x.code);
+      return { top, cur, prev };
+    }
+
+    function finishersByCountryAndRegion(rows){
+      const idx = (names) => { const cols=Object.keys(rows[0]||{}); const l=cols.map(c=>c.toLowerCase()); for(const n of names){ const i=l.indexOf(n); if(i>-1) return cols[i]; } return null; };
+      const cStat = idx(['race_status','racestatus','status']);
+      const cCode = idx(['countrycode','country_code','nationcode','alpha3']);
+      const finByCountry = {}; const finByRegion = {};
+      for (const r of rows){ const st=(r[cStat]||'').toString().trim(); if (st!=='Finished') continue; const code=(r[cCode]||'').toString().trim().toUpperCase(); if (!code) continue; const info = countryMap[code]; const country = info? info.Country : code; const region = info? info.Region : 'Unknown'; finByCountry[country]=(finByCountry[country]||0)+1; finByRegion[region]=(finByRegion[region]||0)+1; }
+      return { finByCountry, finByRegion };
+    }
+
+    /* =============================== Render ================================= */
+    async function render(year){
+      const prevYear = String(+year - 1);
+      await ensureMap();
+      const [cur, prev] = await Promise.all([loadYearBundle(year), loadYearBundle(prevYear)]);
+
+      // KPIs
+      const kpiCur = buildKPIs(cur.runners);
+      const kpiPrev = prev.runners.length ? buildKPIs(prev.runners) : null;
+      renderKPIs(kpiCur, kpiPrev, year, prevYear);
+
+      // Race status
+      const sCur = statusCounts(cur.runners), sPrev = statusCounts(prev.runners);
+      const sLabels = Array.from(new Set([...Object.keys(sCur), ...Object.keys(sPrev)])).sort();
+      ensureChart('chartStatus','bar',{
+        labels:sLabels,
+        datasets:[
+          { label: year, data: sLabels.map(k=>sCur[k]||0) },
+          { label: prevYear, data: sLabels.map(k=>sPrev[k]||0) },
+        ]
+      },{ responsive:true, scales:{ x:{ stacked:false }, y:{ beginAtZero:true } } });
+      document.getElementById('capStatus').textContent = `${year} vs ${prevYear}`;
+
+      // Gender share
+      const gCur = genderCounts(cur.runners), gPrev = genderCounts(prev.runners);
+      const gLabels = Array.from(new Set([...Object.keys(gCur), ...Object.keys(gPrev)])).sort();
+      ensureChart('chartGender','bar',{
+        labels:gLabels,
+        datasets:[
+          { label: year, data: gLabels.map(k=>gCur[k]||0) },
+          { label: prevYear, data: gLabels.map(k=>gPrev[k]||0) },
+        ]
+      },{ responsive:true, scales:{ y:{ beginAtZero:true } } });
+      document.getElementById('capGender').textContent = `${year} vs ${prevYear}`;
+
+      // Start windows
+      const stCur = startBins30(cur.runners), stPrev = startBins30(prev.runners);
+      const stLabels = Array.from(new Set([...(stCur.labels||[]), ...(stPrev.labels||[])])).sort();
+      ensureChart('chartStart','bar',{
+        labels:stLabels,
+        datasets:[
+          { label: year, data: stLabels.map(k=>{ const i=(stCur.labels||[]).indexOf(k); return i>-1? stCur.counts[i] : 0; }) },
+          { label: prevYear, data: stLabels.map(k=>{ const i=(stPrev.labels||[]).indexOf(k); return i>-1? stPrev.counts[i] : 0; }) },
+        ]
+      },{ responsive:true, scales:{ x:{ ticks:{ autoSkip:false, maxRotation:70, minRotation:70 } }, y:{ beginAtZero:true } } });
+      document.getElementById('capStart').textContent = `${year} vs ${prevYear}`;
+
+      // Finish time histogram
+      const hCur = histFinishTimes(cur.runners), hPrev = histFinishTimes(prev.runners);
+      ensureChart('chartFinishBins','bar',{
+        labels:hCur.labels,
+        datasets:[ { label: year, data:hCur.counts }, { label: prevYear, data:hPrev.counts } ]
+      },{ responsive:true, scales:{ y:{ beginAtZero:true } } });
+      document.getElementById('capFinishBins').textContent = `${year} vs ${prevYear}`;
+
+      // Weather
+      const wCur = weatherSeries(cur.weather), wPrev = weatherSeries(prev.weather);
+      ensureChart('chartWeather','line',{
+        labels:Array.from(new Set([...wCur.labels, ...wPrev.labels])).sort(),
+        datasets:[
+          { label:`Temp ${year}`, data:(lab=>lab.map(l=>{const i=wCur.labels.indexOf(l); return i>-1? wCur.temp[i] : null;}))(Array.from(new Set([...wCur.labels, ...wPrev.labels])).sort()), tension:.25, pointRadius:0 },
+          { label:`Temp ${prevYear}`, data:(lab=>lab.map(l=>{const i=wPrev.labels.indexOf(l); return i>-1? wPrev.temp[i] : null;}))(Array.from(new Set([...wCur.labels, ...wPrev.labels])).sort()), tension:.25, pointRadius:0 },
+        ]
+      },{ responsive:true, scales:{ y:{ title:{display:true,text:'°C'} } } });
+      document.getElementById('capWeather').textContent = `${year} vs ${prevYear}`;
+
+      // Segment pace vs °C (current year only shown against its °C)
+      const segCur = segmentPaceSeries(cur.runners, wCur);
+      ensureChart('chartSegPace','bar',{
+        labels:segCur.labels,
+        datasets:[ { label:'Median pace (min/km)', data: segCur.paces, yAxisID:'y' }, { label:'Temperature (°C)', data: segCur.temps, type:'line', yAxisID:'y1', tension:.25, pointRadius:2 } ]
+      },{ responsive:true, scales:{ y:{ title:{display:true,text:'min/km'}, ticks:{ callback:(v)=>{ const mm=Math.floor(v/60), ss=v%60; return mm+':'+String(ss).padStart(2,'0'); } } }, y1:{ position:'right', title:{display:true,text:'°C'}, grid:{ drawOnChartArea:false } } } });
+      document.getElementById('capSegPace').textContent = `${year}`;
+
+      // Flow vs weather — stacked (two charts)
+      const flowCur = flowStacked(cur.runners, wCur);
+      ensureChart('chartFlowWeatherStackedCur','bar', { labels:flowCur.labels, datasets:flowCur.datasets }, { responsive:true, scales:{ x:{ stacked:true }, y:{ stacked:true, title:{display:true,text:'Runners'} }, y1:{ position:'right', title:{display:true,text:'°C'}, grid:{ drawOnChartArea:false } } } });
+      document.getElementById('capStackedCur').textContent = `${year}`;
+
+      const flowPrev = flowStacked(prev.runners, wPrev);
+      ensureChart('chartFlowWeatherStackedPrev','bar', { labels:flowPrev.labels, datasets:flowPrev.datasets }, { responsive:true, scales:{ x:{ stacked:true }, y:{ stacked:true, title:{display:true,text:'Runners'} }, y1:{ position:'right', title:{display:true,text:'°C'}, grid:{ drawOnChartArea:false } } } });
+      document.getElementById('capStackedPrev').textContent = `${prevYear}`;
+
+      // Top 20 countries (two bars per country)
+      const { top, cur:curCnt, prev:prevCnt } = top20Countries(cur.runners, prev.runners);
+      const labelsTop = await Promise.all(top.map(async code => { const m = await ensureMap(); return (m[code]?.Country) || code; }));
+      ensureChart('chartCountriesTop','bar',{
+        labels:labelsTop,
+        datasets:[ { label:year, data: top.map(code=>curCnt[code]||0) }, { label:prevYear, data: top.map(code=>prevCnt[code]||0) } ]
+      },{ responsive:true, indexAxis:'y', scales:{ x:{ beginAtZero:true } } });
+      document.getElementById('capTop20').textContent = `${year} vs ${prevYear}`;
+
+      // Finishers by country & by region (bars with two years)
+      const finCur = finishersByCountryAndRegion(cur.runners); const finPrev = finishersByCountryAndRegion(prev.runners);
+      const countriesAll = Array.from(new Set([...Object.keys(finCur.finByCountry), ...Object.keys(finPrev.finByCountry)])).sort((a,b)=> (finCur.finByCountry[b]||0)-(finCur.finByCountry[a]||0)).slice(0,25);
+      ensureChart('chartFinByCountry','bar',{
+        labels:countriesAll,
+        datasets:[ { label:year, data:countriesAll.map(c=>finCur.finByCountry[c]||0) }, { label:prevYear, data:countriesAll.map(c=>finPrev.finByCountry[c]||0) } ]
+      },{ responsive:true, indexAxis:'y', scales:{ x:{ beginAtZero:true } } });
+      document.getElementById('capFinCountry').textContent = `${year} vs ${prevYear}`;
+
+      const regionsAll = Array.from(new Set([...Object.keys(finCur.finByRegion), ...Object.keys(finPrev.finByRegion)])).sort();
+      ensureChart('chartFinByRegion','bar',{
+        labels:regionsAll,
+        datasets:[ { label:year, data:regionsAll.map(r=>finCur.finByRegion[r]||0) }, { label:prevYear, data:regionsAll.map(r=>finPrev.finByRegion[r]||0) } ]
+      },{ responsive:true, scales:{ y:{ beginAtZero:true } } });
+      document.getElementById('capFinRegion').textContent = `${year} vs ${prevYear}`;
+    }
+
+    // Init
+    document.getElementById('yearSelect').addEventListener('change', (e)=> render(e.target.value));
+    render('2024');
+  </script>
+</body>
+</html>

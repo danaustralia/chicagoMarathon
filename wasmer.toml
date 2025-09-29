@@ -1,0 +1,10 @@
+[package]
+name = "danaustralia/chicago-marathon"
+version = "0.0.1"
+description = "Chicago Marathon — Data Highlights"
+
+[dependencies]
+"wasmer/static-web-server" = "^1"
+
+[fs]
+public = "public"
