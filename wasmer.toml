@@ -1,6 +1,6 @@
 [package]
 name = "danaustralia/chicago-marathon"
-version = "0.0.4"
+version = "0.0.5"
 description = "Chicago Marathon — Data Highlights"
 
 [dependencies]
