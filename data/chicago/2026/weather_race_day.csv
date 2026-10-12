@@ -1,0 +1,27 @@
+time,temperatureF,temperatureC,conditions,wind
+07:30,59,15.0,Passing clouds / crisp morning start,S 3 mph
+08:00,60,15.6,Mostly sunny,SSE 4 mph
+08:30,61,16.1,Clear and bright,SSE 6 mph
+09:00,63,17.2,Sunny,SSE 7 mph
+09:30,64,17.8,Sunny / warming,SSE 5 mph
+10:00,65,18.3,Scattered light clouds,Calm
+10:30,66,18.9,Partly cloudy,Variable 3 mph
+11:00,67,19.4,Intermittent clouds,Calm
+11:30,68,20.0,Partly cloudy,S 4 mph
+12:00,70,21.1,Dry and bright,Calm
+12:30,71,21.7,Passing clouds,SSW 5 mph
+13:00,73,22.8,Warm sun,SW 5 mph
+13:30,74,23.3,High scattered clouds,Variable 4 mph
+14:00,75,23.9,Dry and warm,Calm
+14:30,76,24.4,Sunny intervals,SSW 6 mph
+15:00,78,25.6,Reported peak 2:59 PM,SW 6 mph
+15:30,77,25.0,Mostly sunny,SW 7 mph
+16:00,76,24.4,Clear,SSW 5 mph
+16:30,75,23.9,Clear,S 4 mph
+17:00,74,23.3,Clear,S 5 mph
+17:30,72,22.2,Clear skies,SSE 5 mph
+18:00,70,21.1,Dusk,SSE 6 mph
+18:30,68,20.0,Clear night,SE 6 mph
+19:00,66,18.9,Clear,SE 7 mph
+19:30,64,17.8,Clear,SE 6 mph
+20:00,63,17.2,Clear night air,ESE 5 mph
