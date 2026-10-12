@@ -28,3 +28,6 @@ body{background:var(--bg);color:var(--ink)}.nav{background:rgba(246,245,240,.94)
 .method-notes{max-width:1050px}.method-notes p{margin:15px 0;line-height:1.7}.method-notes b{color:#102d4a}
 .nav-links{gap:14px;flex-wrap:wrap}.nav-links a{white-space:nowrap}
 @media(max-width:700px){.pacing-kpis{grid-template-columns:1fr}.pacing-kpis>div{padding:16px}}
+
+/* Gender-aware visualizations */
+.gender-breakdown{margin-top:24px;border-top:1px solid var(--line);padding-top:18px}.gender-breakdown h4{margin:0 0 5px;font-size:14px}.gender-breakdown p,.gender-note{font-size:12px;color:var(--muted)}.chart-wrap.compact-chart{height:185px;margin-top:10px}.dark-card .chart-wrap{height:350px}@media(max-width:600px){.chart-wrap.compact-chart{height:215px}.dark-card .chart-wrap{height:310px}}
